@@ -1,0 +1,45 @@
+# Entornos virtuales
+venv/
+env/
+
+# Archivos de entorno
+.env
+
+# Bytecode de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Archivos generados
+*.swp
+*.swo
+
+# Archivos de base de datos local
+*.db
+*.sqlite
+
+# Directorios de dependencias
+node_modules/
+
+# Archivos temporales
+*.tmp
+
+# Archivos de datos de prueba
+test_data/
+
+# Configuración de Docker
+!docker-compose.yml
+!Dockerfile
+
+# Excepciones (mantener estos)
+!.gitignore
+!README.md
+!requirements.txt

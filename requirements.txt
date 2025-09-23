@@ -1,0 +1,7 @@
+yfinance
+sqlalchemy
+psycopg2-binary
+asyncio
+pytz
+pytest
+python-dotenv
