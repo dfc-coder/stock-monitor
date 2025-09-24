@@ -1,7 +1,9 @@
 yfinance
 sqlalchemy
-psycopg2-binary
-asyncio
+asyncpg
+sqlalchemy[asyncio]
 pytz
 pytest
 python-dotenv
+pytest-asyncio
+pydantic
