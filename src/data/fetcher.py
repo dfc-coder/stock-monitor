@@ -11,7 +11,9 @@ Public API:
 - YFinanceFetcher.fetch_last_close(symbols: list[str]) -> dict[str, float]
 
 Notes:
-- This module does not touch the database. It only fetches market data.
+- Fetching functions are pure wrt DB (no direct I/O), while storage helpers at
+  the bottom provide minimal persistence of daily closes via SQLAlchemy AsyncSession
+  (callers should manage the DB session lifecycle using `db/connection.py`).
 - Cache is in-memory and process-local with TTL. Suitable for the app process.
 - yfinance is mocked in unit tests for speed and determinism.
 """
@@ -19,9 +21,14 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from datetime import date
 from typing import Callable, Dict, Iterable, List
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from utils.config import Config
+from data.models import Ticker, DailyPrice
 
 
 @dataclass(frozen=True)
@@ -224,3 +231,73 @@ def _safe_get_last(df_like: object, key: object) -> float | None:
             return float(series[-1])  # type: ignore[index]
     except Exception:
         return None
+
+
+# --- Daily storage helpers (Subtask 2.4) ---
+
+async def store_daily_closes(
+    session: AsyncSession, prices: Dict[str, float], price_date: date
+) -> int:
+    """Persist daily close prices for given symbols on a specific date.
+
+    Behavior
+    - Ensures a `Ticker` exists for each symbol (create if missing).
+    - Inserts a `DailyPrice` row if (ticker_id, price_date) does not already exist.
+    - Sets open/high/low equal to close when only close is available.
+
+    Returns
+    - Number of newly inserted `DailyPrice` rows.
+    """
+    if not prices:
+        return 0
+
+    inserted = 0
+    # Deterministic order for easier testing/logging
+    for symbol in sorted(s.strip().upper() for s in prices.keys() if s and s.strip()):
+        close_value = float(prices[symbol])
+
+        ticker = await _get_or_create_ticker(session, symbol)
+        exists = await _get_daily_price(session, ticker.id, price_date)
+        if exists is not None:
+            continue
+
+        daily = DailyPrice(
+            ticker_id=ticker.id,
+            price_date=price_date,
+            open=close_value,
+            high=close_value,
+            low=close_value,
+            close=close_value,
+            volume=0,
+        )
+        session.add(daily)
+        inserted += 1
+
+    # Commit is handled by the caller's context manager (see db/connection.get_db_session)
+    return inserted
+
+
+async def _get_or_create_ticker(session: AsyncSession, symbol: str) -> Ticker:
+    """Fetch an existing Ticker by symbol or create a new one."""
+    result = await session.execute(select(Ticker).where(Ticker.symbol == symbol))
+    ticker = result.scalar_one_or_none()
+    if ticker is not None:
+        return ticker
+
+    ticker = Ticker(symbol=symbol)
+    session.add(ticker)
+    # Flush to populate ticker.id before using it as FK
+    await session.flush()
+    return ticker
+
+
+async def _get_daily_price(
+    session: AsyncSession, ticker_id: int, price_date: date
+) -> DailyPrice | None:
+    """Return DailyPrice if it exists for (ticker_id, price_date)."""
+    result = await session.execute(
+        select(DailyPrice).where(
+            (DailyPrice.ticker_id == ticker_id) & (DailyPrice.price_date == price_date)
+        )
+    )
+    return result.scalar_one_or_none()
