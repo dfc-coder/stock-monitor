@@ -1,22 +1,18 @@
-"""
-Stock Widget Application - Main Entry Point
+from __future__ import annotations
 
-This is the main entry point for the Stock Widget application.
-It initializes the UI and starts the real-time data updates.
-"""
-from utils.config import Config
+import tkinter as tk
+
+from config import DEFAULT_TICKERS
+from ui import RealtimeApp
 
 
-def main():
-    """Main entry point for the Stock Widget application."""
-    # Load configuration
-    config = Config.load()
-
-    # TODO: Initialize UI components
-    # TODO: Start real-time updates
-
-    print("Stock Widget application started successfully!")
-    print(f"Configuration loaded: DB={config.DB_NAME}, Max Tickers={config.MAX_TICKERS}")
+# =========================
+# Entry point
+# =========================
+def main() -> None:
+    root = tk.Tk()
+    RealtimeApp(root, tickers=DEFAULT_TICKERS)
+    root.mainloop()
 
 
 if __name__ == "__main__":
