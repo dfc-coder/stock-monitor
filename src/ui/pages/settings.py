@@ -63,5 +63,6 @@ class SettingsPage(ttk.Frame):
         if not symbols:
             if not messagebox.askyesno("Confirmar", "No hay símbolos. ¿Continuar?"):
                 return
+        self.app.repo.add_many(symbols)
         self.app.restart_worker(symbols)
         messagebox.showinfo("OK", f"Reiniciado con {len(symbols)} símbolo(s).")

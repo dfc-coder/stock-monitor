@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 import tkinter as tk
-
-from config import DEFAULT_TICKERS
+from pathlib import Path
 from ui import RealtimeApp
+from db.tickers import TickerRepository
 
 
-# =========================
-# Entry point
-# =========================
 def main() -> None:
     root = tk.Tk()
-    RealtimeApp(root, tickers=DEFAULT_TICKERS)
+
+    # ruta siempre relativa a la carpeta "src"
+    db_path = Path(__file__).resolve().parent / "data" / "tickers.db"
+
+    repo = TickerRepository(db_path)
+
+    RealtimeApp(root, repo)
     root.mainloop()
 
 

@@ -36,6 +36,7 @@ class QuotesPage(ttk.Frame):
         """Reconstruye la tabla a partir de app.quote_by_symbol."""
         for iid in self.tree.get_children():
             self.tree.delete(iid)
+        print(self.app.quote_by_symbol)
         for sym in self.app.quote_by_symbol:
             self.tree.insert("", "end", iid=sym, values=(sym, "-", "-", "-", "-"))
 
