@@ -1,8 +1,8 @@
+# db/tickers.py
 from __future__ import annotations
-
 import sqlite3
 from pathlib import Path
-from typing import Iterable, List
+from typing import Iterable, List, Sequence, Tuple, Any
 from contextlib import contextmanager
 
 
@@ -20,10 +20,6 @@ class TickerRepository:
 
     @contextmanager
     def _session(self):
-        """
-        Sesión transaccional.
-        Todo lo que ejecutes dentro es atómico: si falla algo -> rollback.
-        """
         conn = self._connect()
         try:
             yield conn
@@ -36,24 +32,35 @@ class TickerRepository:
 
     def _migrate(self) -> None:
         with self._session() as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS tickers (
-                    symbol TEXT PRIMARY KEY
+                    symbol TEXT PRIMARY KEY,
+                    follow INTEGER NOT NULL DEFAULT 0
                 );
-            """)
+            """
+            )
 
-    # ---------------- Operaciones públicas ----------------
+    # -------- Lecturas --------
     def list(self, limit: int = 100) -> List[str]:
+        # Solo los seguidos
         with self._session() as conn:
             cur = conn.execute(
-                "SELECT symbol FROM tickers ORDER BY symbol ASC LIMIT ?;",
+                "SELECT symbol FROM tickers WHERE follow > 0 ORDER BY symbol ASC LIMIT ?;",
                 (limit,),
             )
-            rows = [r[0] for r in cur.fetchall()]
-            print(f"Rows: {rows}")
-        return rows  # fuera del with, ya leímos los datos
+            return [r[0] for r in cur.fetchall()]
 
-    def add_many(self, symbols: Iterable[str]) -> int:
+    def list_all(self) -> List[Tuple[str, int]]:
+        # Todos con su follow (para Settings)
+        with self._session() as conn:
+            cur = conn.execute(
+                "SELECT symbol, follow FROM tickers ORDER BY symbol ASC;"
+            )
+            return [(r[0], int(r[1])) for r in cur.fetchall()]
+
+    # -------- Escrituras eficientes --------
+    def upsert_many(self, symbols: Iterable[str]) -> int:
         symbols = list(symbols)
         if not symbols:
             return 0
@@ -62,27 +69,34 @@ class TickerRepository:
                 "INSERT OR IGNORE INTO tickers(symbol) VALUES (?);",
                 [(s,) for s in symbols],
             )
-            inserted = max(cur.rowcount or 0, 0)
-        return inserted
+            return max(cur.rowcount or 0, 0)
 
-    def remove(self, symbol: str) -> int:
+    def set_follow_many(self, symbols: Iterable[str], follow: int) -> int:
+        syms = [s for s in symbols]
+        if not syms:
+            return 0
+        placeholders = ",".join(["?"] * len(syms))
+        params: Sequence[Any] = (follow, *syms)
         with self._session() as conn:
-            cur = conn.execute("DELETE FROM tickers WHERE symbol = ?;", (symbol,))
-            deleted = max(cur.rowcount or 0, 0)
-        return deleted
+            cur = conn.execute(
+                f"UPDATE tickers SET follow = ? WHERE symbol IN ({placeholders});",
+                params,
+            )
+            return max(cur.rowcount or 0, 0)
 
-    def replace_all(self, symbols: Iterable[str]) -> None:
-        symbols = list(symbols)
+    def remove_many(self, symbols: Iterable[str]) -> int:
+        syms = [s for s in symbols]
+        if not syms:
+            return 0
+        placeholders = ",".join(["?"] * len(syms))
         with self._session() as conn:
-            conn.execute("DELETE FROM tickers;")
-            if symbols:
-                conn.executemany(
-                    "INSERT OR IGNORE INTO tickers(symbol) VALUES (?);",
-                    [(s,) for s in symbols],
-                )
+            cur = conn.execute(
+                f"DELETE FROM tickers WHERE symbol IN ({placeholders});",
+                syms,
+            )
+            return max(cur.rowcount or 0, 0)
 
     def is_empty(self) -> bool:
         with self._session() as conn:
-            cur = conn.execute("SELECT COUNT(*) FROM tickers;")
-            (count,) = cur.fetchone()
-        return count == 0
+            (count,) = conn.execute("SELECT COUNT(*) FROM tickers;").fetchone()
+            return count == 0

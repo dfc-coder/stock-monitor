@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import tkinter as tk
 from pathlib import Path
+from ttkbootstrap import Window
+
 from ui import RealtimeApp
 from db.tickers import TickerRepository
 
 
 def main() -> None:
-    root = tk.Tk()
-
+    # creás la ventana con un tema (ej: "flatly", "darkly", "cosmo", "morph")
+    root = Window(themename="darkly")
     # ruta siempre relativa a la carpeta "src"
     db_path = Path(__file__).resolve().parent / "data" / "tickers.db"
 
